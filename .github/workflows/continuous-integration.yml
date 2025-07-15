@@ -1,0 +1,41 @@
+name: continuous-integration.yml
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        run: |
+          docker build -t hwp-converter:latest .
+
+      - name: Run Docker container
+        run: |
+          docker run -d -p 8800:8800 --name hwp-converter hwp-converter:latest
+          sleep 5
+
+      - name: Test /health endpoint
+        run: |
+          response=$(curl -s -w "%{http_code}" http://localhost:8800/health)
+          status_code=${response: -3}
+          body=${response%???}
+          echo "Health response: $body"
+          echo "Status code: $status_code"
+          if [ "$status_code" -ne 200 ]; then
+            echo "Health check failed"
+            exit 1
+          fi
+          if [[ "$body" != *'"status":"ok"'* ]]; then
+            echo "Unexpected health response"
+            exit 1
+          fi
